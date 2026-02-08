@@ -10,21 +10,22 @@
   },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
-    "@hookform/resolvers": "^5.2.2",
+    "@hookform/resolvers": "^3.x.x",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
-    "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.95.3",
+    "@supabase/ssr": "^0.x.x",
+    "@supabase/supabase-js": "^2.x.x",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
+    "date-fns": "^3.x.x",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-hook-form": "^7.71.1",
+    "react-hook-form": "^7.x.x",
     "tailwind-merge": "^3.4.0",
-    "zod": "^4.3.6",
-    "zustand": "^5.0.11"
+    "zod": "^3.x.x",
+    "zustand": "^4.x.x"
+    
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
