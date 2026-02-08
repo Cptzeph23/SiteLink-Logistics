@@ -62,9 +62,14 @@ sitelink-logistics/
 4. Run development server: `npm run dev`
 5. Open http://localhost:3000
 
+## 📐 Architecture & Documentation
+
+- **[System Architecture](./ARCHITECTURE.md)** - Complete system design, workflows, and technical decisions
+- **[Database Schema](./supabase/migrations/)** - PostgreSQL migrations and table definitions
+
 ## 🗄️ Database Setup
 
-See `supabase/migrations/` for database schema.
+See `supabase/migrations/` for database schema and run them in order in Supabase SQL Editor.
 
 ## 📝 License
 
