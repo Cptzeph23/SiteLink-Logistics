@@ -11,6 +11,9 @@
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@hookform/resolvers": "^3.x.x",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-slot": "^1.2.4",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.x.x",
     "@supabase/supabase-js": "^2.x.x",
@@ -25,7 +28,6 @@
     "tailwind-merge": "^3.4.0",
     "zod": "^3.x.x",
     "zustand": "^4.x.x"
-    
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
