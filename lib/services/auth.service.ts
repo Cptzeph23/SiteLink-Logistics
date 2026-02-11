@@ -56,8 +56,8 @@ export const authService = {
         .from('client_profiles')
         .insert({
           user_id: authData.user.id,
-          company_name: formData.company_name,
-          business_type: formData.business_type,
+          company_name: formData.company_name || null,
+          business_type: formData.business_type || null,
         });
 
       if (profileError) throw profileError;
@@ -102,6 +102,7 @@ export const authService = {
   async getCurrentUser() {
     const supabase = createClient();
     
+    // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!user) return null;
@@ -111,26 +112,29 @@ export const authService = {
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle(); // Changed from .single() to .maybeSingle()
 
     if (userError) throw userError;
+    if (!userData) return null;
 
     // Get role-specific profile
     let profile = null;
     if (userData.role === 'client') {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('client_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
-      profile = data;
+        .maybeSingle(); // Changed from .single() to .maybeSingle()
+      
+      if (!error) profile = data;
     } else if (userData.role === 'driver') {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('driver_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
-      profile = data;
+        .maybeSingle(); // Changed from .single() to .maybeSingle()
+      
+      if (!error) profile = data;
     }
 
     return {
