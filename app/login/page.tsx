@@ -25,22 +25,32 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Step 1: Sign in
       await authService.signIn(formData.email, formData.password);
-      
-      // Get user to determine redirect
+
+      // Step 2: Get user role for redirect
       const user = await authService.getCurrentUser();
-      
-      if (user?.role === 'client') {
-        router.push('/client/dashboard');
-      } else if (user?.role === 'driver') {
-        router.push('/driver/dashboard');
-      } else if (user?.role === 'admin') {
-        router.push('/admin/dashboard');
+
+      if (!user) {
+        setError('Login succeeded but could not load your profile. Please try again.');
+        setLoading(false);
+        return;
       }
+
+      // Step 3: Redirect based on role
+      if (user.role === 'client') {
+        router.push('/client/dashboard');
+      } else if (user.role === 'driver') {
+        router.push('/driver/dashboard');
+      } else if (user.role === 'admin') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/client/dashboard'); // fallback
+      }
+
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Invalid email or password');
-    } finally {
+      setError(err.message || 'Invalid email or password. Please try again.');
       setLoading(false);
     }
   }
@@ -65,7 +75,7 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
                   {error}
                 </div>
               )}
@@ -98,7 +108,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-construction-orange hover:bg-construction-orange/90"
+                className="w-full bg-construction-orange hover:bg-construction-orange/90 text-white"
                 disabled={loading}
               >
                 {loading ? (
@@ -112,7 +122,7 @@ export default function LoginPage() {
               </Button>
 
               <div className="text-center text-sm text-slate-600">
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
                 <Link href="/register" className="text-construction-orange hover:underline font-medium">
                   Register here
                 </Link>

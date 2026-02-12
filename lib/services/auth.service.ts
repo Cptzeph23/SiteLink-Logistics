@@ -12,7 +12,7 @@ export const authService = {
    */
   async signIn(email: string, password: string) {
     const supabase = createClient();
-    
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -24,31 +24,31 @@ export const authService = {
 
   /**
    * Sign up new user
+   * The trigger handle_new_user() automatically creates the public.users record
+   * We just need to handle the role-specific profile after
    */
   async signUp(formData: RegisterFormData) {
     const supabase = createClient();
 
-    // 1. Create auth user
+    // 1. Create auth user with metadata
+    // The trigger will auto-create the public.users record using this metadata
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
+      options: {
+        data: {
+          full_name: formData.full_name,
+          phone: formData.phone,
+          role: formData.role,
+        },
+      },
     });
 
     if (authError) throw authError;
     if (!authData.user) throw new Error('Failed to create user');
 
-    // 2. Create user record in database
-    const { error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: formData.email,
-        phone: formData.phone,
-        full_name: formData.full_name,
-        role: formData.role,
-      });
-
-    if (userError) throw userError;
+    // 2. Wait briefly for trigger to fire and create the user record
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // 3. Create role-specific profile
     if (formData.role === 'client') {
@@ -60,7 +60,10 @@ export const authService = {
           business_type: formData.business_type || null,
         });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Client profile error:', profileError);
+        // Don't throw - user was created, profile can be set later
+      }
     } else if (formData.role === 'driver') {
       const { error: profileError } = await supabase
         .from('driver_profiles')
@@ -71,7 +74,10 @@ export const authService = {
           id_number: formData.id_number!,
         });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Driver profile error:', profileError);
+        // Don't throw - user was created, profile can be set later
+      }
     }
 
     return authData;
@@ -101,40 +107,52 @@ export const authService = {
    */
   async getCurrentUser() {
     const supabase = createClient();
-    
-    // Get authenticated user
+
+    // Get authenticated user from Supabase Auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!user) return null;
 
-    // Get user data from database
+    // Get user data from public.users table
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .maybeSingle(); // Changed from .single() to .maybeSingle()
+      .maybeSingle();
 
     if (userError) throw userError;
-    if (!userData) return null;
+
+    // If no user record yet (trigger might not have fired), 
+    // return basic info from auth metadata
+    if (!userData) {
+      const meta = user.user_metadata;
+      return {
+        id: user.id,
+        email: user.email || '',
+        role: meta?.role || 'client',
+        full_name: meta?.full_name || '',
+        profile: null,
+      };
+    }
 
     // Get role-specific profile
     let profile = null;
     if (userData.role === 'client') {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('client_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle(); // Changed from .single() to .maybeSingle()
-      
-      if (!error) profile = data;
+        .maybeSingle();
+
+      profile = data;
     } else if (userData.role === 'driver') {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('driver_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle(); // Changed from .single() to .maybeSingle()
-      
-      if (!error) profile = data;
+        .maybeSingle();
+
+      profile = data;
     }
 
     return {
