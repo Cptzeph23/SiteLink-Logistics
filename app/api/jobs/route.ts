@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/jobs
@@ -8,15 +8,16 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET() {
   try {
     const supabase = await createClient();
+    const admin = createAdminClient();
 
-    // Get current user
+    // Verify session
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user role
-    const { data: userData } = await supabase
+    // Use admin to bypass RLS
+    const { data: userData } = await admin
       .from('users')
       .select('role')
       .eq('id', user.id)
@@ -29,8 +30,7 @@ export async function GET() {
     let jobs;
 
     if (userData.role === 'client') {
-      // Get client profile
-      const { data: clientProfile } = await supabase
+      const { data: clientProfile } = await admin
         .from('client_profiles')
         .select('id')
         .eq('user_id', user.id)
@@ -40,17 +40,9 @@ export async function GET() {
         return NextResponse.json({ jobs: [] });
       }
 
-      // Get client's jobs
-      const { data, error } = await supabase
+      const { data, error } = await admin
         .from('jobs')
-        .select(`
-          *,
-          job_stops(*),
-          job_materials(
-            *,
-            material:materials(name, category)
-          )
-        `)
+        .select(`*, job_stops(*), job_materials(*, material:materials(name, category))`)
         .eq('client_id', clientProfile.id)
         .order('created_at', { ascending: false });
 
@@ -58,8 +50,7 @@ export async function GET() {
       jobs = data;
 
     } else if (userData.role === 'driver') {
-      // Get driver profile
-      const { data: driverProfile } = await supabase
+      const { data: driverProfile } = await admin
         .from('driver_profiles')
         .select('id')
         .eq('user_id', user.id)
@@ -69,17 +60,9 @@ export async function GET() {
         return NextResponse.json({ jobs: [] });
       }
 
-      // Get driver's jobs
-      const { data, error } = await supabase
+      const { data, error } = await admin
         .from('jobs')
-        .select(`
-          *,
-          job_stops(*),
-          job_materials(
-            *,
-            material:materials(name, category)
-          )
-        `)
+        .select(`*, job_stops(*), job_materials(*, material:materials(name, category))`)
         .eq('driver_id', driverProfile.id)
         .order('created_at', { ascending: false });
 
@@ -87,17 +70,9 @@ export async function GET() {
       jobs = data;
 
     } else if (userData.role === 'admin') {
-      // Admin gets all jobs
-      const { data, error } = await supabase
+      const { data, error } = await admin
         .from('jobs')
-        .select(`
-          *,
-          job_stops(*),
-          job_materials(
-            *,
-            material:materials(name, category)
-          )
-        `)
+        .select(`*, job_stops(*), job_materials(*, material:materials(name, category))`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -108,10 +83,7 @@ export async function GET() {
 
   } catch (error) {
     console.error('Error fetching jobs:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch jobs' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
   }
 }
 
@@ -124,20 +96,32 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const body = await request.json();
 
-    // Get current user
+    // Verify session with regular client
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Use admin client for all DB operations — bypasses RLS
+    const admin = createAdminClient();
+
     // Get client profile
-    const { data: clientProfile } = await supabase
+    const { data: clientProfile, error: profileError } = await admin
       .from('client_profiles')
       .select('id')
       .eq('user_id', user.id)
       .maybeSingle();
 
+    if (profileError) {
+      console.error('Profile lookup error:', profileError);
+      return NextResponse.json(
+        { error: `Profile lookup failed: ${profileError.message}` },
+        { status: 500 }
+      );
+    }
+
     if (!clientProfile) {
+      console.error('No client profile found for user:', user.id);
       return NextResponse.json({ error: 'Client profile not found' }, { status: 404 });
     }
 
@@ -151,7 +135,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Create the job
-    const { data: job, error: jobError } = await supabase
+    const { data: job, error: jobError } = await admin
       .from('jobs')
       .insert({
         client_id: clientProfile.id,
@@ -191,15 +175,15 @@ export async function POST(request: NextRequest) {
       access_notes: stop.access_notes || null,
     }));
 
-    const { error: stopsError } = await supabase
+    const { error: stopsError } = await admin
       .from('job_stops')
       .insert(stopsToInsert);
 
     if (stopsError) throw stopsError;
 
-    // Fetch material details for insertion
+    // Fetch material details
     const materialIds = materials.map((m: any) => m.material_id);
-    const { data: materialData } = await supabase
+    const { data: materialData } = await admin
       .from('materials')
       .select('id, unit_weight_kg, handling_fee_per_unit')
       .in('id', materialIds);
@@ -207,29 +191,23 @@ export async function POST(request: NextRequest) {
     // Create job materials
     const materialsToInsert = materials.map((selected: any) => {
       const material = materialData?.find((m: any) => m.id === selected.material_id);
-      const totalWeight = (material?.unit_weight_kg || 0) * selected.quantity;
-      const handlingFee = (material?.handling_fee_per_unit || 0) * selected.quantity;
-
       return {
         job_id: job.id,
         material_id: selected.material_id,
         quantity: selected.quantity,
         unit_weight_kg: material?.unit_weight_kg || 0,
-        total_weight_kg: totalWeight,
-        handling_fee: handlingFee,
+        total_weight_kg: (material?.unit_weight_kg || 0) * selected.quantity,
+        handling_fee: (material?.handling_fee_per_unit || 0) * selected.quantity,
       };
     });
 
-    const { error: materialsError } = await supabase
+    const { error: materialsError } = await admin
       .from('job_materials')
       .insert(materialsToInsert);
 
     if (materialsError) throw materialsError;
 
-    return NextResponse.json({
-      job,
-      message: 'Job created successfully',
-    }, { status: 201 });
+    return NextResponse.json({ job, message: 'Job created successfully' }, { status: 201 });
 
   } catch (error: any) {
     console.error('Error creating job:', error);
