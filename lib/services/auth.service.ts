@@ -1,45 +1,30 @@
 import { createClient } from '@/lib/supabase/client';
 import type { RegisterFormData } from '@/types';
 
-/**
- * Authentication Service
- * Handles all auth-related operations with Supabase
- */
-
 export const authService = {
-  /**
-   * Sign in with email and password
-   */
   async signIn(email: string, password: string) {
     const supabase = createClient();
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data;
   },
 
-  /**
-   * Sign up new user
-   * The trigger handle_new_user() automatically creates the public.users record
-   * We just need to handle the role-specific profile after
-   */
   async signUp(formData: RegisterFormData) {
     const supabase = createClient();
 
-    // 1. Create auth user with metadata
-    // The trigger will auto-create the public.users record using this metadata
+    // Pass ALL fields as metadata so the DB trigger can use them
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
         data: {
-          full_name: formData.full_name,
-          phone: formData.phone,
-          role: formData.role,
+          full_name:      formData.full_name,
+          phone:          formData.phone,
+          role:           formData.role,
+          // Driver-specific (trigger uses these)
+          license_number: formData.license_number || '',
+          license_expiry: formData.license_expiry || '',
+          id_number:      formData.id_number || '',
         },
       },
     });
@@ -47,54 +32,30 @@ export const authService = {
     if (authError) throw authError;
     if (!authData.user) throw new Error('Failed to create user');
 
-    // 2. Wait briefly for trigger to fire and create the user record
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait briefly for trigger to fire
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // 3. Create role-specific profile
-    if (formData.role === 'client') {
-      const { error: profileError } = await supabase
+    // Update client profile with optional business details if provided
+    if (formData.role === 'client' && (formData.company_name || formData.business_type)) {
+      const supabaseClient = createClient();
+      await supabaseClient
         .from('client_profiles')
-        .insert({
-          user_id: authData.user.id,
-          company_name: formData.company_name || null,
+        .update({
+          company_name:  formData.company_name  || null,
           business_type: formData.business_type || null,
-        });
-
-      if (profileError) {
-        console.error('Client profile error:', profileError);
-        // Don't throw - user was created, profile can be set later
-      }
-    } else if (formData.role === 'driver') {
-      const { error: profileError } = await supabase
-        .from('driver_profiles')
-        .insert({
-          user_id: authData.user.id,
-          license_number: formData.license_number!,
-          license_expiry: formData.license_expiry!,
-          id_number: formData.id_number!,
-        });
-
-      if (profileError) {
-        console.error('Driver profile error:', profileError);
-        // Don't throw - user was created, profile can be set later
-      }
+        })
+        .eq('user_id', authData.user.id);
     }
 
     return authData;
   },
 
-  /**
-   * Sign out current user
-   */
   async signOut() {
     const supabase = createClient();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   },
 
-  /**
-   * Get current session
-   */
   async getSession() {
     const supabase = createClient();
     const { data: { session }, error } = await supabase.auth.getSession();
@@ -102,18 +63,13 @@ export const authService = {
     return session;
   },
 
-  /**
-   * Get current user with profile
-   */
   async getCurrentUser() {
     const supabase = createClient();
 
-    // Get authenticated user from Supabase Auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!user) return null;
 
-    // Get user data from public.users table
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
@@ -122,16 +78,15 @@ export const authService = {
 
     if (userError) throw userError;
 
-    // If no user record yet (trigger might not have fired), 
-    // return basic info from auth metadata
+    // Fallback to auth metadata if public.users row not yet ready
     if (!userData) {
       const meta = user.user_metadata;
       return {
-        id: user.id,
-        email: user.email || '',
-        role: meta?.role || 'client',
+        id:        user.id,
+        email:     user.email || '',
+        role:      meta?.role || 'client',
         full_name: meta?.full_name || '',
-        profile: null,
+        profile:   null,
       };
     }
 
@@ -143,7 +98,6 @@ export const authService = {
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
-
       profile = data;
     } else if (userData.role === 'driver') {
       const { data } = await supabase
@@ -151,14 +105,13 @@ export const authService = {
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
-
       profile = data;
     }
 
     return {
-      id: user.id,
-      email: userData.email,
-      role: userData.role,
+      id:        user.id,
+      email:     userData.email,
+      role:      userData.role,
       full_name: userData.full_name,
       profile,
     };
