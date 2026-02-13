@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/shared/Navbar';
 import { LoadingPage, LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { MaterialSelector } from '@/components/client/MaterialSelector';
-import { PriceBreakdown } from '@/components/client/PriceBreakdown';
+import { PriceBreakdown } from '@/components/client/priceBreakdown';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
