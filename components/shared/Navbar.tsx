@@ -26,7 +26,7 @@ export function Navbar({ userRole, userName, onLogout }: NavbarProps) {
       case 'driver':
         return [
           { href: '/driver/dashboard', label: 'Dashboard' },
-          { href: '/driver/jobs', label: 'Available Jobs' },
+          { href: '/driver/dashboard', label: 'Available Jobs' },
           { href: '/driver/earnings', label: 'Earnings' },
         ];
       case 'admin':
