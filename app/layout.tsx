@@ -1,23 +1,20 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "SiteLink Logistics - Linking materials to sites",
-  description: "Professional construction logistics platform for transporting heavy materials using 1.5-2 tonne vehicles in Kenya.",
-  keywords: ["construction logistics", "material transport", "Kenya", "building materials", "cement delivery", "steel delivery"],
+  title: 'SiteLink Logistics — Nairobi Construction Transport',
+  description: 'Connect with verified LCV drivers for construction material delivery across Nairobi.',
+  icons: { icon: '/favicon.ico' },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body suppressHydrationWarning>
         {children}
       </body>
     </html>
