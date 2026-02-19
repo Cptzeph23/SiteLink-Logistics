@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, Package, MapPin, Clock,
-  Phone, Truck, CheckCircle, User
+  Phone, Truck, CheckCircle, User, Smartphone, ArrowRight
 } from 'lucide-react';
 import { authService } from '@/lib/services/auth.service';
 
@@ -126,6 +126,11 @@ export default function ClientJobDetailPage() {
             {statusConfig.label}
           </span>
         </div>
+
+        {/* Payment Alert for Delivered Jobs */}
+        {job.status === 'delivered' && (
+          <PaymentAlert jobId={job.id} totalAmount={job.total_amount} />
+        )}
 
         {/* Tracking Map */}
         <Card className="mb-6">
@@ -303,6 +308,64 @@ export default function ClientJobDetailPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+// Payment Alert Component
+function PaymentAlert({ jobId, totalAmount }: { jobId: string; totalAmount: number }) {
+  const [paymentStatus, setPaymentStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const res = await fetch(`/api/payments/status?job_id=${jobId}`);
+        const data = await res.json();
+        setPaymentStatus(data);
+      } catch (err) {
+        console.error('Payment status check failed:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    checkStatus();
+  }, [jobId]);
+
+  if (loading) return null;
+
+  if (paymentStatus?.is_paid) {
+    return (
+      <div className="mb-6 p-4 bg-green-50 border-2 border-green-400 rounded-xl flex items-center gap-3 animate-fade-in">
+        <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+        <div>
+          <p className="font-bold text-green-900 text-sm">Payment Completed</p>
+          <p className="text-green-600 text-xs">
+            Receipt: {paymentStatus.payment.mpesa_receipt_number}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/client/bookings/${jobId}/payment`}>
+      <div className="mb-6 p-4 rounded-xl flex items-center justify-between cursor-pointer
+        transition-all hover:shadow-md animate-fade-in"
+        style={{ background: 'linear-gradient(135deg, #FF6B35 0%, #E55A26 100%)', color: 'white' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <Smartphone className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-bold text-sm">Payment Required</p>
+            <p className="text-white/80 text-xs">
+              Pay {`KSh ${totalAmount.toLocaleString('en-KE')}`} via M-Pesa
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5" />
+      </div>
+    </Link>
   );
 }
 
