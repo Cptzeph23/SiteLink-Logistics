@@ -298,6 +298,7 @@ function DriverJobItem({
   job: any;
   onUpdateStatus: (id: string, action: string) => Promise<void>;
 }) {
+  const router = useRouter();
   const [updating, setUpdating] = useState(false);
 
   const pickup = job.job_stops?.find((s: any) => s.stop_type === 'pickup');
@@ -392,7 +393,7 @@ function DriverJobItem({
                 onClick={() => router.push(`/driver/jobs/${job.id}/deliver`)}
                 disabled={updating}
               >
-                ✅ Mark Delivered
+                 Mark Delivered
               </Button>
             )}
 
