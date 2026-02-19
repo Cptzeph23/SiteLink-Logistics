@@ -44,6 +44,13 @@ export default function DeliveryConfirmationPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         
+        // Verify driver is assigned to this job
+        if (data.job.driver_id !== currentUser.id) {
+          alert('You are not assigned to this job');
+          router.push('/driver/dashboard');
+          return;
+        }
+        
         if (data.job.status !== 'in_transit') {
           alert('Job must be in transit to mark as delivered');
           router.push(`/driver/jobs/${jobId}`);
