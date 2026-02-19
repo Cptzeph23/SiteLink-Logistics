@@ -263,6 +263,11 @@ export default function ClientJobDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Proof of Delivery */}
+        {job.status === 'delivered' && (
+          <ProofOfDeliveryCard jobId={jobId} />
+        )}
+
         {/* Price Breakdown */}
         <Card>
           <CardHeader>
@@ -298,5 +303,90 @@ export default function ClientJobDetailPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+// Proof of Delivery Card Component
+function ProofOfDeliveryCard({ jobId }: { jobId: string }) {
+  const [pod, setPod] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchPod() {
+      try {
+        const res = await fetch(`/api/proof-of-delivery?job_id=${jobId}`);
+        const data = await res.json();
+        setPod(data.pod);
+      } catch (err) {
+        console.error('Failed to load PoD:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPod();
+  }, [jobId]);
+
+  if (loading) {
+    return (
+      <Card className="border-2 border-green-400 bg-green-50 animate-pulse">
+        <CardContent className="py-6 text-center">
+          <p className="text-sm text-green-600">Loading delivery confirmation...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!pod) {
+    return null;
+  }
+
+  return (
+    <Card className="border-2 border-green-400 bg-green-50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2 text-green-800">
+          <CheckCircle className="h-5 w-5" /> Delivery Confirmed
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-xs text-green-600 font-medium mb-1">Received By</p>
+            <p className="font-semibold text-green-900">{pod.recipient_name}</p>
+            {pod.recipient_phone && (
+              <p className="text-xs text-green-600 mt-0.5">{pod.recipient_phone}</p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs text-green-600 font-medium mb-1">Delivered At</p>
+            <p className="font-semibold text-green-900">
+              {new Date(pod.delivered_at).toLocaleString('en-KE', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </p>
+          </div>
+        </div>
+
+        {pod.notes && (
+          <div className="pt-3 border-t border-green-200">
+            <p className="text-xs text-green-600 font-medium mb-1">Delivery Notes</p>
+            <p className="text-sm text-green-800">{pod.notes}</p>
+          </div>
+        )}
+
+        {pod.photo_url && (
+          <div className="pt-3 border-t border-green-200">
+            <p className="text-xs text-green-600 font-medium mb-2">Delivery Photo</p>
+            <img
+              src={pod.photo_url}
+              alt="Delivery confirmation"
+              className="w-full rounded-lg border border-green-200"
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -259,17 +259,13 @@ export default function DriverJobDetailPage() {
           <Card className="mb-6 border-2 border-green-200 bg-green-50">
             <CardContent className="py-4">
               <p className="text-sm text-green-700 mb-3">
-                Once all materials have been safely unloaded and delivered, press Mark Delivered.
+                Once all materials have been safely unloaded, confirm delivery with recipient details.
               </p>
               <Button
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => handleAction('deliver')}
-                disabled={updating}
+                onClick={() => router.push(`/driver/jobs/${job.id}/deliver`)}
               >
-                {updating
-                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Completing...</>
-                  : <><Flag className="h-4 w-4 mr-2" /> Mark as Delivered</>
-                }
+                <Flag className="h-4 w-4 mr-2" /> Confirm Delivery
               </Button>
             </CardContent>
           </Card>
