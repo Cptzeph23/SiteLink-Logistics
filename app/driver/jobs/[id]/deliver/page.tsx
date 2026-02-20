@@ -57,13 +57,13 @@ export default function DeliveryConfirmationPage() {
         
         // Verify driver is assigned to this job
         if (data.job.driver_id !== currentUser.id) {
-          console.error('❌ Driver mismatch detected!');
+          console.error(' Driver mismatch detected!');
           alert('You are not assigned to this job');
           router.push('/driver/dashboard');
           return;
         }
         
-        console.log('✅ Driver verification passed');
+        console.log(' Driver verification passed');
         
         if (data.job.status !== 'in_transit') {
           alert('Job must be in transit to mark as delivered');

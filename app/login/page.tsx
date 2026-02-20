@@ -60,9 +60,9 @@ export default function LoginPage() {
 
           <div className="mt-10 space-y-4">
             {[
-              { icon: '📍', text: 'Live GPS tracking on every delivery' },
-              { icon: '💰', text: 'Know your price before you book' },
-              { icon: '✅', text: 'Verified, insured LCV operators' },
+              { icon: '', text: 'Live GPS tracking on every delivery' },
+              { icon: '', text: 'Know your price before you book' },
+              { icon: '', text: 'Verified, insured LCV operators' },
             ].map(item => (
               <div key={item.text} className="flex items-center gap-3">
                 <span className="text-lg">{item.icon}</span>
