@@ -44,12 +44,26 @@ export default function DeliveryConfirmationPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         
+        // Debug: Log the IDs being compared
+        console.log('🔍 PoD Client Check:', {
+          job_driver_id: data.job.driver_id,
+          job_driver_id_type: typeof data.job.driver_id,
+          current_user_id: currentUser.id,
+          current_user_id_type: typeof currentUser.id,
+          match: data.job.driver_id === currentUser.id,
+          strict_equal: data.job.driver_id === currentUser.id,
+          loose_equal: data.job.driver_id == currentUser.id,
+        });
+        
         // Verify driver is assigned to this job
         if (data.job.driver_id !== currentUser.id) {
+          console.error('❌ Driver mismatch detected!');
           alert('You are not assigned to this job');
           router.push('/driver/dashboard');
           return;
         }
+        
+        console.log('✅ Driver verification passed');
         
         if (data.job.status !== 'in_transit') {
           alert('Job must be in transit to mark as delivered');
