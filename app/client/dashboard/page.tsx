@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
   Package, TrendingUp, Clock, CheckCircle,
-  ArrowRight, MapPin, Smartphone, Loader2
+  ArrowRight, MapPin, Smartphone, Loader2, TrendingDown
 } from 'lucide-react';
 import { authService } from '@/lib/services/auth.service';
 
@@ -178,7 +178,7 @@ export default function ClientDashboard() {
         </div>
 
         {/* New Booking Button */}
-        <div className="mb-6 animate-fade-up" style={{ animationDelay: '0.2s' }}>
+        <div className="mb-6 animate-fade-up flex gap-3" style={{ animationDelay: '0.2s' }}>
           <Link href="/client/bookings/new">
             <Button 
               className="h-12 px-6 font-semibold rounded-xl transition-all hover:-translate-y-0.5"
@@ -188,6 +188,18 @@ export default function ClientDashboard() {
                 boxShadow: '0 4px 16px rgba(255,107,53,0.35)'
               }}>
               + New Booking
+            </Button>
+          </Link>
+          <Link href="/client/return-trips">
+            <Button 
+              variant="outline"
+              className="h-12 px-6 font-semibold rounded-xl transition-all hover:-translate-y-0.5 border-2"
+              style={{ 
+                borderColor: 'var(--orange)',
+                color: 'var(--orange)'
+              }}>
+              <TrendingDown className="h-4 w-4 mr-2" />
+              Return Trips
             </Button>
           </Link>
         </div>
