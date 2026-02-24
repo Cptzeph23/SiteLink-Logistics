@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { mpesaService } from '@/lib/services/mpesa.service';
+import { notificationService } from '@/lib/services/notification.service';
 
 /**
  * POST /api/payments/callback
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update payment record
-    const { error: updateError } = await admin
+    const { data: updatedPayment, error: updateError } = await admin
       .from('payments')
       .update({
         payment_status: 'completed',
@@ -76,15 +77,41 @@ export async function POST(request: NextRequest) {
         ).toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', payment.id);
+      .eq('id', payment.id)
+      .select(`
+        amount,
+        job:jobs(
+          job_number,
+          client_profile:client_profiles(
+            user:users(phone, email)
+          )
+        )
+      `)
+      .single();
 
     if (updateError) {
       console.error('Failed to update payment:', updateError);
     } else {
       console.log(`Payment completed: ${mpesaReceiptNumber} for job ${payment.job_id}`);
       
-      // Optionally: Send SMS/email confirmation to client
-      // Optionally: Release payment to driver (after platform fee)
+      // Send payment confirmation notification
+      try {
+        const job = updatedPayment?.job as any;
+        const clientProfile = job?.client_profile as any;
+        const user = clientProfile?.user as any;
+        
+        if (user?.phone && user?.email) {
+          await notificationService.notifyPaymentReceived({
+            clientPhone: user.phone,
+            clientEmail: user.email,
+            jobNumber: job.job_number,
+            receiptNumber: mpesaReceiptNumber || '',
+            amount: updatedPayment.amount,
+          });
+        }
+      } catch (notifError) {
+        console.error('Payment notification error:', notifError);
+      }
     }
 
     // Always return success to M-Pesa

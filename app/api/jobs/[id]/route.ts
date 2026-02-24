@@ -212,17 +212,22 @@ export async function PATCH(
 
     // Send notifications based on action
     try {
-      if (action === 'accept' && updatedJob.client_profile?.user) {
+      const clientProfile = updatedJob.client_profile as any;
+      const driverProfile = updatedJob.driver_profile as any;
+      const clientUser = clientProfile?.user as any;
+      const driverUser = driverProfile?.user as any;
+      
+      if (action === 'accept' && clientUser?.phone && clientUser?.email) {
         await notificationService.notifyJobAccepted({
-          clientPhone: updatedJob.client_profile.user.phone,
-          clientEmail: updatedJob.client_profile.user.email,
+          clientPhone: clientUser.phone,
+          clientEmail: clientUser.email,
           jobNumber: updatedJob.job_number,
-          driverName: updatedJob.driver_profile?.user?.full_name || 'Driver',
+          driverName: driverUser?.full_name || 'Driver',
         });
-      } else if (action === 'start_transit' && updatedJob.client_profile?.user) {
+      } else if (action === 'start_transit' && clientUser?.phone && clientUser?.email) {
         await notificationService.notifyTripStarted({
-          clientPhone: updatedJob.client_profile.user.phone,
-          clientEmail: updatedJob.client_profile.user.email,
+          clientPhone: clientUser.phone,
+          clientEmail: clientUser.email,
           jobNumber: updatedJob.job_number,
         });
       }

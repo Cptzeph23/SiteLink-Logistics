@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       .select(`
         job_number,
         total_amount,
-        client_profile:client_profiles!jobs_client_id_fkey(
+        client_profile:client_profiles(
           user:users(phone, email)
         )
       `)
@@ -170,10 +170,13 @@ export async function POST(request: NextRequest) {
 
     // Send delivery notification to client
     try {
-      if (updatedJob?.client_profile?.user) {
+      const clientProfile = updatedJob?.client_profile as any;
+      const user = clientProfile?.user as any;
+      
+      if (user?.phone && user?.email) {
         await notificationService.notifyDeliveryComplete({
-          clientPhone: updatedJob.client_profile.user.phone,
-          clientEmail: updatedJob.client_profile.user.email,
+          clientPhone: user.phone,
+          clientEmail: user.email,
           jobNumber: updatedJob.job_number,
           totalAmount: updatedJob.total_amount,
         });
