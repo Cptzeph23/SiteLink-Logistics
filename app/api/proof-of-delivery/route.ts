@@ -45,15 +45,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
+    // Get driver profile ID for current user
+    const { data: driverProfile, error: driverError } = await admin
+      .from('driver_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (driverError || !driverProfile) {
+      return NextResponse.json(
+        { error: 'Driver profile not found' },
+        { status: 404 }
+      );
+    }
+
     // Debug: Log the comparison
     console.log('PoD Auth Check:', {
       job_driver_id: job.driver_id,
-      current_user_id: user.id,
-      match: job.driver_id === user.id
+      driver_profile_id: driverProfile.id,
+      match: job.driver_id === driverProfile.id
     });
 
-    if (job.driver_id !== user.id) {
-      console.error('Driver mismatch:', { expected: job.driver_id, actual: user.id });
+    if (job.driver_id !== driverProfile.id) {
+      console.error('Driver mismatch:', { 
+        expected: job.driver_id, 
+        actual: driverProfile.id 
+      });
       return NextResponse.json(
         { error: 'You are not assigned to this job' },
         { status: 403 }

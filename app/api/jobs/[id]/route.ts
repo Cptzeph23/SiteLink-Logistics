@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
+/**
+ * GET /api/jobs/[id]
+ * Fetch a specific job with all details
+ */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const supabase = await createClient();
     const admin = createAdminClient();
-    const { id } = await params;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -19,107 +23,195 @@ export async function GET(
       .from('jobs')
       .select(`
         *,
-        job_stops(*),
-        job_materials(*, material:materials(name, category, unit_weight_kg, requires_straps, requires_tarp, is_fragile)),
-        client:client_profiles(company_name, business_type, user:users(full_name, phone)),
-        driver:driver_profiles(user:users(full_name, phone))
+        job_stops (*),
+        job_materials (*, material:materials(*)),
+        client_profile:client_profiles!jobs_client_id_fkey(
+          user:users(full_name, phone)
+        ),
+        driver_profile:driver_profiles!jobs_driver_id_fkey(
+          user:users(full_name, phone)
+        )
       `)
-      .eq('id', id)
-      .maybeSingle();
+      .eq('id', params.id)
+      .single();
 
-    if (error) throw error;
-    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
 
     return NextResponse.json({ job });
-
-  } catch (error) {
-    console.error('Error fetching job:', error);
-    return NextResponse.json({ error: 'Failed to fetch job' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Job fetch error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch job' },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * PATCH /api/jobs/[id]
+ * Update job status (accept, start_transit, deliver)
+ */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const supabase = await createClient();
     const admin = createAdminClient();
-    const { id } = await params;
-    const body = await request.json();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const body = await request.json();
     const { action } = body;
 
-    if (action === 'accept') {
-      const { data: driverProfile } = await admin
-        .from('driver_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+    // Get current job
+    const { data: job, error: fetchError } = await admin
+      .from('jobs')
+      .select('*')
+      .eq('id', params.id)
+      .single();
 
-      if (!driverProfile) {
-        return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 });
-      }
-
-      const { data: job, error } = await admin
-        .from('jobs')
-        .update({ status: 'accepted', driver_id: driverProfile.id })
-        .eq('id', id)
-        .eq('status', 'pending')
-        .select()
-        .single();
-
-      if (error) throw error;
-      if (!job) return NextResponse.json({ error: 'Job no longer available' }, { status: 409 });
-
-      return NextResponse.json({ job, message: 'Job accepted successfully!' });
-
-    } else if (action === 'start_transit') {
-      const { data: job, error } = await admin
-        .from('jobs')
-        .update({ status: 'in_transit', actual_pickup_time: new Date().toISOString() })
-        .eq('id', id)
-        .eq('status', 'accepted')
-        .select()
-        .single();
-
-      if (error) throw error;
-      return NextResponse.json({ job, message: 'Trip started!' });
-
-    } else if (action === 'deliver') {
-      const { data: job, error } = await admin
-        .from('jobs')
-        .update({ status: 'delivered', actual_delivery_time: new Date().toISOString() })
-        .eq('id', id)
-        .eq('status', 'in_transit')
-        .select()
-        .single();
-
-      if (error) throw error;
-      return NextResponse.json({ job, message: 'Job marked as delivered!' });
-
-    } else if (action === 'cancel') {
-      const { data: job, error } = await admin
-        .from('jobs')
-        .update({ status: 'cancelled' })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return NextResponse.json({ job, message: 'Job cancelled.' });
-
-    } else {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    if (fetchError || !job) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
+    let updateData: any = { updated_at: new Date().toISOString() };
+    let message = '';
+
+    switch (action) {
+      case 'accept':
+        if (job.status !== 'pending') {
+          return NextResponse.json(
+            { error: 'Job is not available' },
+            { status: 400 }
+          );
+        }
+        
+        // Get driver profile ID from user ID
+        const { data: driverProfile, error: driverError } = await admin
+          .from('driver_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (driverError || !driverProfile) {
+          return NextResponse.json(
+            { error: 'Driver profile not found' },
+            { status: 404 }
+          );
+        }
+        
+        // CRITICAL FIX: Set driver_id to the driver_profile.id
+        updateData.status = 'accepted';
+        updateData.driver_id = driverProfile.id;
+        message = 'Job accepted successfully';
+        break;
+
+      case 'start_transit':
+        if (job.status !== 'accepted') {
+          return NextResponse.json(
+            { error: 'Job must be accepted first' },
+            { status: 400 }
+          );
+        }
+        
+        // Get driver profile ID
+        const { data: driverProfileStart, error: driverErrorStart } = await admin
+          .from('driver_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (driverErrorStart || !driverProfileStart) {
+          return NextResponse.json(
+            { error: 'Driver profile not found' },
+            { status: 404 }
+          );
+        }
+        
+        if (job.driver_id !== driverProfileStart.id) {
+          return NextResponse.json(
+            { error: 'You are not assigned to this job' },
+            { status: 403 }
+          );
+        }
+        
+        updateData.status = 'in_transit';
+        updateData.actual_pickup_time = new Date().toISOString();
+        message = 'Trip started';
+        break;
+
+      case 'deliver':
+        if (job.status !== 'in_transit') {
+          return NextResponse.json(
+            { error: 'Job must be in transit' },
+            { status: 400 }
+          );
+        }
+        
+        // Get driver profile ID
+        const { data: driverProfileDeliver, error: driverErrorDeliver } = await admin
+          .from('driver_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (driverErrorDeliver || !driverProfileDeliver) {
+          return NextResponse.json(
+            { error: 'Driver profile not found' },
+            { status: 404 }
+          );
+        }
+        
+        if (job.driver_id !== driverProfileDeliver.id) {
+          return NextResponse.json(
+            { error: 'You are not assigned to this job' },
+            { status: 403 }
+          );
+        }
+        
+        updateData.status = 'delivered';
+        updateData.actual_delivery_time = new Date().toISOString();
+        message = 'Job marked as delivered';
+        break;
+
+      default:
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    }
+
+    // Update job
+    const { data: updatedJob, error: updateError } = await admin
+      .from('jobs')
+      .update(updateData)
+      .eq('id', params.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Job update error:', updateError);
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message,
+      job: updatedJob,
+    });
+
   } catch (error: any) {
-    console.error('Error updating job:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update job' }, { status: 500 });
+    console.error('Job update error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to update job' },
+      { status: 500 }
+    );
   }
 }
