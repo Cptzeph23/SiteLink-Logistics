@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { notificationService } from '@/lib/services/notification.service';
 
 /**
  * POST /api/proof-of-delivery
@@ -142,14 +143,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Update job status to delivered
-    const { error: updateError } = await admin
+    const { data: updatedJob, error: updateError } = await admin
       .from('jobs')
       .update({
         status: 'delivered',
         actual_delivery_time: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', job_id);
+      .eq('id', job_id)
+      .select(`
+        job_number,
+        total_amount,
+        client_profile:client_profiles!jobs_client_id_fkey(
+          user:users(phone, email)
+        )
+      `)
+      .single();
 
     if (updateError) {
       console.error('Job update error:', updateError);
@@ -157,6 +166,21 @@ export async function POST(request: NextRequest) {
         { error: `Failed to update job status: ${updateError.message}` },
         { status: 500 }
       );
+    }
+
+    // Send delivery notification to client
+    try {
+      if (updatedJob?.client_profile?.user) {
+        await notificationService.notifyDeliveryComplete({
+          clientPhone: updatedJob.client_profile.user.phone,
+          clientEmail: updatedJob.client_profile.user.email,
+          jobNumber: updatedJob.job_number,
+          totalAmount: updatedJob.total_amount,
+        });
+      }
+    } catch (notifError) {
+      console.error('Notification error:', notifError);
+      // Don't fail the request if notification fails
     }
 
     return NextResponse.json({

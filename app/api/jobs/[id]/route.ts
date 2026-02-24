@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { notificationService } from '@/lib/services/notification.service';
 
 /**
  * GET /api/jobs/[id]
@@ -190,7 +191,15 @@ export async function PATCH(
       .from('jobs')
       .update(updateData)
       .eq('id', params.id)
-      .select()
+      .select(`
+        *,
+        client_profile:client_profiles!jobs_client_id_fkey(
+          user:users(full_name, phone, email)
+        ),
+        driver_profile:driver_profiles!jobs_driver_id_fkey(
+          user:users(full_name, phone)
+        )
+      `)
       .single();
 
     if (updateError) {
@@ -199,6 +208,27 @@ export async function PATCH(
         { error: updateError.message },
         { status: 500 }
       );
+    }
+
+    // Send notifications based on action
+    try {
+      if (action === 'accept' && updatedJob.client_profile?.user) {
+        await notificationService.notifyJobAccepted({
+          clientPhone: updatedJob.client_profile.user.phone,
+          clientEmail: updatedJob.client_profile.user.email,
+          jobNumber: updatedJob.job_number,
+          driverName: updatedJob.driver_profile?.user?.full_name || 'Driver',
+        });
+      } else if (action === 'start_transit' && updatedJob.client_profile?.user) {
+        await notificationService.notifyTripStarted({
+          clientPhone: updatedJob.client_profile.user.phone,
+          clientEmail: updatedJob.client_profile.user.email,
+          jobNumber: updatedJob.job_number,
+        });
+      }
+    } catch (notifError) {
+      console.error('Notification error:', notifError);
+      // Don't fail the request if notifications fail
     }
 
     return NextResponse.json({
