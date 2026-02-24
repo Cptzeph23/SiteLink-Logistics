@@ -35,8 +35,7 @@ export async function POST(request: NextRequest) {
         job_number,
         client_id,
         status,
-        total_amount,
-        client:client_profiles(user:users(full_name))
+        total_amount
       `)
       .eq('id', job_id)
       .single();
@@ -45,8 +44,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    // Verify user is the client
-    if (job.client_id !== user.id) {
+    // Get client profile ID for current user
+    const { data: clientProfile, error: clientError } = await admin
+      .from('client_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (clientError || !clientProfile) {
+      return NextResponse.json(
+        { error: 'Client profile not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify user is the client who created this job
+    if (job.client_id !== clientProfile.id) {
       return NextResponse.json(
         { error: 'You are not authorized to pay for this job' },
         { status: 403 }
