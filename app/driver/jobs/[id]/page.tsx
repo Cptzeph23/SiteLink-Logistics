@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, Navigation, MapPin, Package,
   Phone, AlertTriangle, CheckCircle, Loader2,
-  Play, Flag
+  Play, Flag, TrendingDown
 } from 'lucide-react';
 import { authService } from '@/lib/services/auth.service';
 
@@ -272,15 +272,39 @@ export default function DriverJobDetailPage() {
         )}
 
         {job.status === 'delivered' && (
-          <Card className="mb-6 border-2 border-green-400 bg-green-50">
-            <CardContent className="py-4 text-center">
-              <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-2" />
-              <p className="font-semibold text-green-800">Job Completed!</p>
-              <p className="text-sm text-green-600">
-                You earned {formatKES(driverEarnings)}
-              </p>
-            </CardContent>
-          </Card>
+          <>
+            <Card className="mb-4 border-2 border-green-400 bg-green-50">
+              <CardContent className="py-4 text-center">
+                <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-2" />
+                <p className="font-semibold text-green-800">Job Completed!</p>
+                <p className="text-sm text-green-600">
+                  You earned {formatKES(driverEarnings)}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Return Trip Offer */}
+            <Card className="mb-6 border-2 border-orange-400 bg-orange-50">
+              <CardContent className="py-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <TrendingDown className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-orange-900 mb-1">Offer Return Trip</p>
+                    <p className="text-xs text-orange-700">
+                      Earn extra on your return journey! Offer a discounted trip to clients.
+                    </p>
+                  </div>
+                </div>
+                <Link href={`/driver/jobs/${job.id}/return-trip`}>
+                  <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white">
+                    Create Return Trip Offer
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Pickup Details */}
